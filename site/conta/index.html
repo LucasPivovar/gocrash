@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crash Arena · Minha conta</title>
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/paginas.css">
+<style>
+</style>
+</head>
+<body class="pg-interna">
+<header id="topo"></header>
+<main>
+  <section class="panel" aria-labelledby="titulo">
+    <div class="badge"><span>♙</span> PERFIL DO JOGADOR</div>
+    <h2 id="titulo">Meu perfil.</h2>
+    <p class="subtitle" id="subtitulo">Deixe sua marca na arena.</p>
+    <form id="form" novalidate>
+      <label for="nome">NOME DO JOGADOR</label>
+      <div class="field"><span>♙</span><input id="nome" maxlength="30" autocomplete="nickname"></div>
+      <div id="so-conta">
+        <label for="email">E-MAIL</label>
+        <div class="field"><span>✉</span><input id="email" type="email" autocomplete="email" placeholder="Seu e-mail"></div>
+        <label for="nova">NOVA SENHA</label>
+        <div class="field"><span>◇</span><input id="nova" type="password" minlength="8" placeholder="Deixe em branco para manter" autocomplete="new-password"></div>
+        <div id="campo-atual" hidden>
+          <label for="atual">SENHA ATUAL</label>
+          <div class="field"><span>◇</span><input id="atual" type="password" placeholder="Para confirmar a troca de e-mail ou senha" autocomplete="current-password"></div>
+        </div>
+      </div>
+      <p class="note" id="nota-visitante" hidden>Você está como visitante: o saldo fica nesta sessão. Crie uma conta para guardar suas moedas.</p>
+      <p class="erro" id="erro" role="alert"></p>
+      <button class="primary" id="salvar">SALVAR ALTERAÇÕES <b>✓</b></button>
+    </form>
+    <div class="divider">SESSÃO</div>
+    <button class="secondary" id="sair" type="button">Sair da conta</button>
+  </section>
+</main>
+<script type="module">
+import * as arena from '../js/arena.js';
+import { cabecalho, toast, ocupado } from '../js/paginas/comum.js';
+
+const u = await arena.exigirLogin('../');
+await arena.resolverPartidaPendente().catch(() => null);
+await cabecalho({ ativo: 'conta' });
+const $ = id => document.getElementById(id);
+$('nome').value = u.nome || '';
+$('email').value = u.email || '';
+$('so-conta').hidden = u.visitante;
+$('nota-visitante').hidden = !u.visitante;
+// trocar a senha ou o e-mail pede a senha atual
+let emailAtual = u.email || '';
+const precisaSenha = () => !!$('nova').value || $('email').value.trim().toLowerCase() !== emailAtual;
+const mostrarAtual = () => { $('campo-atual').hidden = !precisaSenha(); };
+$('nova').addEventListener('input', mostrarAtual);
+$('email').addEventListener('input', mostrarAtual);
+$('form').addEventListener('submit', e => {
+  e.preventDefault();
+  const dados = { nome: $('nome').value.trim(), email: $('email').value.trim() };
+  if (!dados.nome) { $('erro').textContent = 'O nome não pode ficar vazio.'; return; }
+  if ($('nova').value) dados.novaSenha = $('nova').value;
+  if (precisaSenha()) {
+    if (!$('atual').value) { $('erro').textContent = 'Informe a senha atual para confirmar.'; $('atual').focus(); return; }
+    dados.senhaAtual = $('atual').value;
+  }
+  ocupado($('salvar'), async () => {
+    try {
+      const novo = await arena.atualizarUsuario(dados);
+      emailAtual = novo.email || '';
+      $('erro').textContent = ''; $('nova').value = ''; $('atual').value = ''; $('campo-atual').hidden = true;
+      await cabecalho({ ativo: 'conta' });
+      toast('Perfil atualizado.');
+    } catch (err) { $('erro').textContent = err.message; }
+  });
+});
+$('sair').addEventListener('click', e => ocupado(e.currentTarget, async () => { await arena.sair().catch(() => {}); location.href = '../'; }));
+</script>
+</body>
+</html>

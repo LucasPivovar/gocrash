@@ -1,0 +1,113 @@
+// Cliente do Crash Arena (fase 2): todas as páginas e o jogo falam com o servidor só por aqui.
+// Sessão por cookie (o navegador manda sozinho). Valores em CENTAVOS de moeda (R$ 1 = 1 moeda = 100).
+import { normalize } from './jogo/config.js';
+
+// ---------- formatação ----------
+const numero = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export const moedas = c => numero.format(c / 100);              // 1250 → "12,50"
+export const paraCentavos = v => {                                // "12,5" / "1.234,56" → centavos (ou NaN)
+  let s = String(v).trim();
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  const n = Number(s);
+  return s && Number.isFinite(n) ? Math.round(n * 100) : NaN;
+};
+
+// ---------- chamada à API ----------
+export class ErroApi extends Error { constructor(status, msg, codigo) { super(msg); this.status = status; this.codigo = codigo; } }
+async function api(metodo, rota, corpo, { manter = false } = {}) {
+  let res;
+  try {
+    res = await fetch('/api' + rota, {
+      method: metodo,
+      credentials: 'same-origin',
+      keepalive: manter, // deixa o pedido terminar mesmo se a página estiver fechando
+      headers: metodo === 'GET' ? {} : { 'Content-Type': 'application/json', 'X-Arena': '1' },
+      body: metodo === 'GET' ? undefined : JSON.stringify(corpo || {}),
+    });
+  } catch { throw new ErroApi(0, 'Sem conexão com o servidor. Tente de novo.'); }
+  let dados = {};
+  try { dados = await res.json(); } catch {}
+  if (!res.ok) throw new ErroApi(res.status, dados.erro || `Erro ${res.status}.`, dados.codigo);
+  return dados;
+}
+
+// ---------- sessão ----------
+let eu = null; // cache da página: { usuario, saldo }
+export async function sessao(forcar = false) {
+  if (!eu || forcar) eu = await api('GET', '/eu');
+  return eu;
+}
+export const usuario = async () => (await sessao()).usuario;
+export async function cadastrar({ nome, email, senha, maior18, ref }) { eu = null; return api('POST', '/cadastro', { nome, email, senha, maior18, ...(ref ? { ref } : {}) }); }
+export const visitaIndicacao = ref => api('POST', '/indicacao/visita', { ref }).catch(() => null);
+// Pode responder { precisa2fa: true, desafio } (conta com app autenticador): aí vem entrarComCodigo.
+export async function entrar({ email, senha }) { eu = null; return api('POST', '/login', { email, senha }); }
+export async function entrarComCodigo(desafio, codigo) { eu = null; return api('POST', '/login/2fa', { desafio, codigo }); }
+// confirmação do e-mail (o cadastro responde { confirmar: true, email } e não entra até confirmar)
+export async function confirmarEmail(token) { eu = null; return api('POST', '/confirmar', { token }); }
+export const reenviarConfirmacao = (email, senha) => api('POST', '/confirmar/reenviar', { email, senha });
+export async function entrarVisitante() { eu = null; return api('POST', '/visitante', { maior18: true }); }
+export async function sair() { eu = null; return api('POST', '/sair'); }
+export async function atualizarUsuario(dados) { const r = await api('PATCH', '/eu', dados); eu = null; return r.usuario; }
+export const recuperarSenha = email => api('POST', '/recuperar', { email });
+export const redefinirSenha = (token, senha) => api('POST', '/redefinir', { token, senha });
+// Página que exige login: sem sessão, volta para a entrada (raiz = caminho até site/).
+export async function exigirLogin(raiz = '../') {
+  const s = await sessao();
+  if (!s.usuario) { location.replace(raiz); await new Promise(() => {}); }
+  return s.usuario;
+}
+
+// ---------- carteira ----------
+export const LIMITE_MOVIMENTO = 10000 * 100;
+export const carteira = () => api('GET', '/carteira');                     // { saldo, movimentos }
+export const concluirTutorial = (pulou = false) => { eu = null; return api('POST', '/conta/tutorial', { pulou }); };
+export const depositar = valor => api('POST', '/carteira/deposito', { valor });
+export const consultarDeposito = id => api('GET', `/carteira/deposito/${Number(id)}`);
+// pix: { chaveTipo: 'cpf' | 'telefone', chave, documento } (CPF do titular, se a chave for telefone)
+export const sacar = (valor, codigo, pix = {}) => api('POST', '/carteira/saque', { valor, codigo, chaveTipo: pix.chaveTipo, chave: pix.chave, documento: pix.documento });
+
+// ---------- regras ----------
+export const regras = async () => normalize((await api('GET', '/regras')).regras);
+export const regrasDaPartida = p => normalize(p.regras);
+export const valorPorFruta = (entrada, r) => Math.round(entrada * r.fruitPercent / 100);
+export { valorDasFrutas } from './jogo/config.js';
+
+// ---------- partida ----------
+// estado: criada (entrada paga, tela START) → jogando → encerrada | cancelada
+export const partidaAberta = async () => (await api('GET', '/partida')).partida;
+export const iniciarPartida = async entrada => (await api('POST', '/partidas', { entrada })).partida;
+export const comecarPartida = id => api('POST', `/partidas/${id}/comecar`);
+export const cancelarPartida = id => api('POST', `/partidas/${id}/cancelar`, {}, { manter: true });
+// Fim da corrida: manda a gravação inteira dos comandos (rle) — o servidor refaz a corrida e decide as
+// frutas; `frutas` e `distancia` daqui são só o que o jogo mostrou.
+export const encerrarPartida = (id, { frutas, distancia = 0, tempoMs = 0, rle = [], passos = 0, versao }) =>
+  api('POST', `/partidas/${id}/encerrar`, { frutas, distancia: Math.round(distancia), tempoMs: Math.round(tempoMs), rle, passos, versao }, { manter: true });
+// Progresso parcial: pedaço novo da gravação a partir do par `desde` (o servidor responde quantos pares tem).
+export const progresso = (id, { frutas, distancia, desde, rle, versao }) =>
+  api('POST', `/partidas/${id}/progresso`, { frutas, distancia: Math.round(distancia), desde, rle, versao }, { manter: true });
+export async function resolverPartidaPendente() { return (await api('POST', '/partida/resolver')).encerrada; }
+export async function ultimoResultado() { return api('GET', '/resultado'); }              // { partida, saldo }
+export async function historicoPartidas() { return (await api('GET', '/partidas')).partidas; }
+
+// ---------- operador ----------
+export const salvarRegras = async r => normalize((await api('PUT', '/admin/regras', { regras: r })).regras);
+export const saquesAdmin = ({ estado = 'pendente', q = '', pagina = 1, por = 20 } = {}) =>
+  api('GET', '/admin/saques?' + new URLSearchParams({ estado, q, pagina, por }));
+// links de indicação (operador)
+export const indicacoesAdmin = ({ q = '', tipo = '', pagina = 1, por = 20 } = {}) =>
+  api('GET', '/admin/indicacoes?' + new URLSearchParams({ q, tipo, pagina, por }));
+export const indicacaoAdmin = id => api('GET', `/admin/indicacoes/${Number(id)}`);
+export const criarIndicacao = dados => api('POST', '/admin/indicacoes', dados);
+export const ativarIndicacao = (id, ativo) => api('PATCH', `/admin/indicacoes/${Number(id)}`, { ativo });
+export const decidirSaque = (id, decisao, motivo = '') => api('POST', `/admin/saques/${Number(id)}`, { decisao, motivo });
+export const auditoria = () => api('GET', '/admin/auditoria');
+// usuários (operador: suporte)
+export const usuariosAdmin = ({ q = '', pagina = 1, por = 20, ordem = 'recentes' } = {}) =>
+  api('GET', '/admin/usuarios?' + new URLSearchParams({ q, pagina, por, ordem }));
+export const usuarioAdmin = id => api('GET', `/admin/usuarios/${Number(id)}`);
+export const alterarUsuarioAdmin = (id, dados) => api('PATCH', `/admin/usuarios/${Number(id)}`, dados);
+// admin local (servidor de testes com --admin-local, acessado em localhost): regras sem login
+export const adminLocal = async () => { try { return (await api('GET', '/admin/local')).local; } catch { return false; } };
+export const iniciar2fa = (senha, codigoAtivacao) => api('POST', '/admin/2fa/iniciar', { senha, codigoAtivacao });
+export const confirmar2fa = codigo => api('POST', '/admin/2fa/confirmar', { codigo });

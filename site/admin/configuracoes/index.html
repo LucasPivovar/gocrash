@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crash Arena · Regras do jogo</title>
+<style>
+  :root { --bg: #0b1020; --panel: #151b30; --line: rgba(255,255,255,0.1); --text: #e8ecf5; --muted: #9aa4bb; --accent: #ff9a3c; --ok: #6fdc8c; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, sans-serif; }
+  main { max-width: 560px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { margin: 0 0 4px; font-size: 24px; color: var(--accent); }
+  .sub { margin: 0 0 20px; color: var(--muted); }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+  section h2 { margin: 0 0 10px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .field { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
+  .field + .field { border-top: 1px solid var(--line); }
+  .field label { font-weight: 600; }
+  .field small { display: block; color: var(--muted); font-weight: 400; font-size: 13px; }
+  .ctrl { display: flex; align-items: center; gap: 8px; flex: none; }
+  input[type=number], select { width: 76px; background: #0d1224; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font: inherit; text-align: center; }
+  select { width: auto; text-align: left; }
+  input:disabled { opacity: .4; }
+  .auto { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 13px; font-weight: 400; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+  button, a.btn { background: none; color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 9px 16px; font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #1a1006; }
+  button:hover, a.btn:hover { border-color: var(--accent); }
+  .unit { color: var(--muted); font-weight: 600; }
+  .hint { margin: 2px 0 6px; padding: 8px 10px; background: rgba(255,154,60,0.1); border-radius: 6px; color: var(--text); font-size: 14px; }
+  .hint b { color: var(--accent); }
+  input.txt { width: 170px; background: #0d1224; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font: inherit; }
+  .chave { font: 600 18px ui-monospace, Consolas, monospace; letter-spacing: .08em; background: #0d1224; border: 1px solid var(--line); border-radius: 8px; padding: 12px; word-break: break-all; }
+  #ativar-2fa p { color: var(--text); font-size: 14px; }
+  #ativar-2fa a { color: var(--accent); }
+  .status-2fa { min-height: 20px; color: #ff7a7a; margin-top: 8px; }
+  .vazio { color: var(--muted); font-size: 14px; margin: 0; }
+  .eventos { max-height: 320px; overflow: auto; font-size: 13px; }
+  .eventos div { display: flex; gap: 10px; padding: 4px 0; border-top: 1px solid var(--line); }
+  .eventos time { color: var(--muted); white-space: nowrap; }
+  .eventos code { color: #ffd088; }
+  #status { min-height: 20px; margin-top: 12px; color: var(--ok); }
+  #status.err { color: #ff7a7a; }
+  /* barra de dificuldade */
+  .dif-topo { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .dif-topo b { font-size: 22px; color: var(--accent); }
+  .dif-topo span { color: var(--muted); font-variant-numeric: tabular-nums; }
+  #dificuldade { width: 100%; height: 28px; margin: 0; accent-color: var(--accent); cursor: pointer;
+    background: linear-gradient(90deg, #3fbf6a, #c9d443 30%, #ff9a3c 60%, #ff4d4d 85%, #8b0000) center / 100% 8px no-repeat; border-radius: 4px; }
+  .dif-escala { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 2px; }
+  #dif-nome.personalizado { color: var(--muted); }
+  /* fluxo de partidas */
+  .fluxo-linha { display: grid; grid-template-columns: 74px 1fr 118px; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); }
+  .fluxo-linha:first-of-type { border-top: 0; }
+  .fluxo-linha b { font-size: 14px; }
+  .fluxo-linha input[type=range] { width: 100%; accent-color: var(--accent); }
+  .fluxo-linha input[type=range]:disabled { opacity: .3; }
+  .fluxo-nivel { display: flex; flex-direction: column; align-items: flex-end; font-size: 13px; }
+  .fluxo-nivel span { color: var(--accent); font-weight: 700; }
+  .fluxo-nivel.padrao span { color: var(--muted); }
+  .fluxo-nivel label { color: var(--muted); font-weight: 400; display: flex; gap: 4px; align-items: center; }
+  .fluxo-limiar { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 13px; color: var(--muted); padding: 2px 0 4px 84px; }
+  .fluxo-limiar input.ganho { width: 58px; background: #0d1224; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; font: inherit; text-align: center; }
+  .fluxo-limiar input[type=range] { flex: 1 1 120px; accent-color: #ff4d4d; }
+  .fluxo-limiar b { color: #ff8080; min-width: 120px; }
+  .fluxo-limiar.off > :not(label) { opacity: .35; }
+  @media (max-width: 520px) { .fluxo-limiar { padding-left: 0; } }
+  .aviso-local { background: #3b2a06; border: 1px solid #ff9a3c; color: #ffd9a8; border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; font-size: 14px; }
+  nav.admin { display: flex; gap: 6px; margin-bottom: 16px; }
+  nav.admin a { color: var(--muted); text-decoration: none; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); font-weight: 600; }
+  nav.admin a.on { color: #1a1006; background: var(--accent); border-color: var(--accent); }
+  @media (max-width: 420px) { .field { flex-direction: column; align-items: flex-start; } }
+</style>
+</head>
+<body>
+<main>
+  <nav class="admin"><a href="./" class="on">Configurações</a><a href="../usuarios/">Usuários</a><a href="../saques/">Saques</a><a href="../indicacoes/">Indicações</a></nav>
+  <h1>Configurações</h1>
+  <div class="aviso-local" id="aviso-local" hidden><b>Modo local de teste:</b> esta página está aberta sem login porque o servidor foi iniciado com <code>--admin-local</code> neste computador. No site publicado ela continua exigindo o operador e o app autenticador.</div>
+  <p class="sub">Regras do Desafio solo (operador). Ficam salvas no servidor e valem para todas as partidas criadas depois de salvar.</p>
+  <section id="sem-acesso" hidden><h2>Acesso restrito</h2><p id="sem-acesso-msg">Só a conta de operador pode mudar as regras.</p><a class="btn" href="/">Entrar com a conta de operador</a></section>
+
+  <section id="seguranca-opcional" hidden>
+    <h2>Segurança da conta</h2>
+    <p>Você pode ativar a verificação em duas etapas. Depois de ativada, o login pedirá o código do app autenticador.</p>
+    <div class="actions"><button type="button" class="btn" id="abrir-2fa">Ativar verificação em duas etapas</button></div>
+  </section>
+  <section id="ativar-2fa" hidden>
+    <h2 id="titulo-2fa">Verificação em duas etapas (obrigatória)</h2>
+    <p id="explica-2fa">Para mudar regras e aprovar pagamentos, a conta de operador precisa de um segundo fator: um código de 6 dígitos que muda a cada 30 segundos num app do celular (Google Authenticator, Microsoft Authenticator, Authy…).</p>
+    <div id="passo-1">
+      <div class="field">
+        <label for="senha-2fa">Confirme sua senha<small>Para gerar a chave do app.</small></label>
+        <div class="ctrl"><input type="password" id="senha-2fa" autocomplete="current-password" class="txt"></div>
+      </div>
+      <div class="field" id="campo-ativacao-2fa">
+        <label for="ativacao-2fa">Código de ativação<small>Fica no servidor, em dados/codigo-ativacao-operador.txt (só quem administra o servidor vê). Sem ele, a senha sozinha não cadastra o app.</small></label>
+        <div class="ctrl"><input id="ativacao-2fa" autocomplete="off" class="txt" spellcheck="false"></div>
+      </div>
+      <div class="actions"><button type="button" class="primary" id="gerar-2fa">Gerar chave</button></div>
+    </div>
+    <div id="passo-2" hidden>
+      <p>1. No app, escolha <b>adicionar conta</b> → <b>inserir chave de configuração</b> e digite a chave abaixo (tipo: baseada em tempo). No celular, você também pode tocar em <a id="link-otp" href="#">abrir no app autenticador</a>.</p>
+      <p class="chave" id="chave-2fa"></p>
+      <div class="field">
+        <label for="codigo-2fa">2. Digite o código que o app mostra</label>
+        <div class="ctrl"><input id="codigo-2fa" inputmode="numeric" maxlength="6" autocomplete="one-time-code" class="txt"></div>
+      </div>
+      <div class="actions"><button type="button" class="primary" id="confirmar-2fa">Ativar</button></div>
+    </div>
+    <div id="passo-3" hidden>
+      <p><b>Ativado.</b> Guarde estes códigos de reserva num lugar seguro (fora do celular). Cada um entra uma vez, se você perder o celular. Eles não aparecem de novo.</p>
+      <p class="chave" id="reserva-2fa"></p>
+      <div class="actions"><button type="button" class="primary" id="guardei-2fa">Já guardei os códigos</button></div>
+    </div>
+    <div id="status-2fa" class="status-2fa" role="status"></div>
+  </section>
+  <section id="entrar-2fa" hidden>
+    <h2>Entre com o código do app</h2>
+    <p>Esta sessão foi aberta sem o código do app autenticador. Saia e entre de novo: depois da senha, o site vai pedir o código.</p>
+    <div class="actions"><button type="button" class="primary" id="sair-2fa">Sair e entrar de novo</button></div>
+  </section>
+
+  <form id="form" hidden>
+    <section>
+      <h2>Dificuldade</h2>
+      <div class="dif-topo"><b id="dif-nome">Normal</b><span id="dif-valor"></span></div>
+      <input type="range" id="dificuldade" min="0" max="100" step="1" aria-describedby="dif-desc">
+      <div class="dif-escala"><span>Muito fácil</span><span>Fácil</span><span>Normal</span><span>Difícil</span><span>Muito difícil</span><span>Impossível</span></div>
+      <p class="hint" id="dif-desc"></p>
+      <small style="color:var(--muted)">Arrastar a barra muda principalmente <b>quantas frutas recuperam o depósito</b> (valor de cada fruta) e <b>a aceleração</b>; velocidade inicial, inimigos e buracos mudam pouco. Depois é só salvar. Mexer num desses campos à mão vira "Personalizado".</small>
+    </section>
+
+    <section>
+      <h2>Fluxo de partidas</h2>
+      <p class="hint" style="margin-bottom:10px">Cada jogador passa por <b>10 partidas</b> seguidas: a 1ª usa a dificuldade da posição 1, a 2ª a da posição 2… Depois da 10ª, recomeça da 1. Vale para todos os jogadores. Partida cancelada antes do START não conta. <b>Padrão</b> = usa a dificuldade geral acima. <b>Limiar de ganho</b>: quando o jogador já ganhou esse tanto × a entrada (ex.: 1,5 = 150%), a partida sobe na hora para a dificuldade escolhida — mais aceleração, e as frutas seguintes valem o do nível novo.</p>
+      <div id="fluxo"></div>
+    </section>
+
+    <section>
+      <h2>Inimigos</h2>
+      <div class="field">
+        <label for="enemiesPerChunk">Inimigos por chunk<small>Em cada trecho sorteado. Automático: aumenta com a distância.</small></label>
+        <div class="ctrl">
+          <span class="auto"><input type="checkbox" id="enemiesAuto"> automático</span>
+          <input type="number" id="enemiesPerChunk" min="0" max="8" step="1">
+        </div>
+      </div>
+      <div class="field">
+        <label for="enemiesStart">Inimigos no bloco inicial<small>No começo da fase, antes do primeiro chunk.</small></label>
+        <div class="ctrl"><input type="number" id="enemiesStart" min="0" max="8" step="1"></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Frutas</h2>
+      <div class="field">
+        <label for="fruitMin">Tamanho mínimo do grupo<small>Um grupo por chunk; o tamanho é sorteado entre o mínimo e o máximo.</small></label>
+        <div class="ctrl"><input type="number" id="fruitMin" min="1" max="10" step="1"></div>
+      </div>
+      <div class="field">
+        <label for="fruitMax">Tamanho máximo do grupo</label>
+        <div class="ctrl"><input type="number" id="fruitMax" min="1" max="10" step="1"></div>
+      </div>
+      <div class="field">
+        <label for="fruitPercent">Valor de cada fruta (%)<small>Porcentagem do valor depositado que cada fruta coletada devolve ao saldo.</small></label>
+        <div class="ctrl"><input type="text" inputmode="decimal" id="fruitPercent" style="width:76px;background:#0d1224;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:inherit;text-align:center"><span class="unit">%</span></div>
+      </div>
+      <p class="hint" id="breakEven"></p>
+    </section>
+
+    <section>
+      <h2>Buracos</h2>
+      <div class="field">
+        <label for="pitsMin">Mínimo de buracos por chunk<small>O número de buracos de cada chunk é sorteado entre o mínimo e o máximo (até 99). Chunks com muitos buracos ficam mais longos: juntam vários trechos da fase.</small></label>
+        <div class="ctrl"><input type="number" id="pitsMin" min="0" max="99" step="1"></div>
+      </div>
+      <div class="field">
+        <label for="pitsMax">Máximo de buracos por chunk</label>
+        <div class="ctrl"><input type="number" id="pitsMax" min="0" max="99" step="1"></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Velocidade</h2>
+      <div class="field">
+        <label for="speedStart">Velocidade inicial<small>1 = velocidade original do jogo. Abaixo de 0,9 os buracos maiores podem ficar impossíveis de pular.</small></label>
+        <div class="ctrl"><input type="number" id="speedStart" min="0.1" max="10" step="0.05"></div>
+      </div>
+      <div class="field">
+        <label for="speedGain">Acréscimo a cada 100 m<small>Quanto a velocidade sobe a cada 100 m percorridos. 0 = velocidade fixa.</small></label>
+        <div class="ctrl"><input type="number" id="speedGain" min="0" max="10" step="0.001"></div>
+      </div>
+      <div class="field">
+        <label for="speedMax">Velocidade máxima<small>A velocidade para de subir aqui.</small></label>
+        <div class="ctrl"><input type="number" id="speedMax" min="0.1" max="10" step="0.05"></div>
+      </div>
+    </section>
+
+    <div class="actions">
+      <button type="submit" class="primary">Salvar</button>
+      <button type="button" id="reset">Restaurar padrão</button>
+      <a class="btn" href="/lobby/">Início</a>
+    </div>
+    <div id="status" role="status"></div>
+  </form>
+
+  <section id="auditoria" hidden>
+    <h2>Eventos de segurança recentes</h2>
+    <div id="lista-auditoria" class="eventos"></div>
+  </section>
+</main>
+<script type="module">
+import { DEFAULTS, breakEvenFruits, normalize, regrasDaDificuldade, nomeDaDificuldade, FLUXO_TAM } from '../../js/jogo/config.js';
+import * as arena from '../../js/arena.js';
+
+const $ = id => document.getElementById(id);
+const status = $('status');
+
+// abaixo do campo: quantas frutas empatam com o valor depositado (atualiza enquanto digita)
+function showBreakEven() {
+  const pct = Number(String($('fruitPercent').value).replace(',', '.'));
+  const el = $('breakEven');
+  if (!(pct > 0)) { el.textContent = 'Informe uma porcentagem maior que 0.'; return; }
+  const n = breakEvenFruits(pct);
+  el.innerHTML = `Para igualar o investimento: <b>${n} ${n === 1 ? 'fruta' : 'frutas'}</b>` +
+    ` (exemplo: depositando R$ 10, cada fruta vale R$ ${(10 * pct / 100).toFixed(2).replace('.', ',')}).`;
+}
+$('fruitPercent').addEventListener('input', showBreakEven);
+
+// ---- barra de dificuldade ----
+let dificuldade = null; // posição da barra que gerou os valores atuais; null = ajuste à mão
+const CAMPOS_DIF = ['fruitPercent', 'speedGain', 'speedMax', 'speedStart', 'enemiesPerChunk', 'enemiesStart', 'pitsMin', 'pitsMax'];
+function mostrarDificuldade() {
+  const nome = $('dif-nome');
+  if (dificuldade === null) {
+    nome.textContent = 'Personalizado'; nome.classList.add('personalizado');
+    $('dif-valor').textContent = '';
+    $('dif-desc').textContent = 'Os valores abaixo foram ajustados à mão. Arraste a barra para escolher um nível.';
+    return;
+  }
+  const n = nomeDaDificuldade(dificuldade);
+  nome.textContent = n.nome; nome.classList.remove('personalizado');
+  $('dif-valor').textContent = `${dificuldade} / 100`;
+  $('dif-desc').textContent = n.desc;
+}
+$('dificuldade').addEventListener('input', e => {
+  dificuldade = Number(e.target.value);
+  const r = regrasDaDificuldade(dificuldade);
+  $('enemiesAuto').checked = false;
+  $('enemiesPerChunk').disabled = false;
+  for (const k of CAMPOS_DIF) $(k).value = k === 'fruitPercent' ? String(r[k]).replace('.', ',') : r[k];
+  showBreakEven();
+  mostrarDificuldade();
+});
+// mexer à mão num campo que a barra controla: vira "Personalizado"
+for (const k of [...CAMPOS_DIF, 'enemiesAuto']) $(k).addEventListener('input', () => { dificuldade = null; mostrarDificuldade(); });
+
+// ---- fluxo de partidas: uma barra de dificuldade por posição ----
+const fluxoEl = $('fluxo');
+for (let i = 0; i < FLUXO_TAM; i++) {
+  const linha = document.createElement('div');
+  linha.className = 'fluxo-linha';
+  linha.innerHTML = `<b>Partida ${i + 1}</b>
+    <input type="range" min="0" max="100" step="1" value="40" id="fluxo-${i}" aria-label="Dificuldade da partida ${i + 1}">
+    <div class="fluxo-nivel" id="fluxo-nivel-${i}"><span></span><label><input type="checkbox" id="fluxo-padrao-${i}"> padrão</label></div>
+    <div class="fluxo-limiar off" id="limiar-${i}">
+      <label><input type="checkbox" id="limiar-on-${i}"> Limiar de ganho:</label> ao ganhar
+      <input class="ganho" id="limiar-ganho-${i}" inputmode="decimal" value="1,5" aria-label="Limiar de ganho da partida ${i + 1} (vezes a entrada)">× a entrada, sobe para
+      <input type="range" min="0" max="100" step="1" value="80" id="limiar-dif-${i}" aria-label="Dificuldade depois do limiar na partida ${i + 1}">
+      <b id="limiar-nome-${i}"></b>
+    </div>`;
+  fluxoEl.appendChild(linha);
+}
+function mostrarLimiar(i) {
+  const on = $(`limiar-on-${i}`).checked, dif = $(`limiar-dif-${i}`).value;
+  $(`limiar-${i}`).classList.toggle('off', !on);
+  $(`limiar-ganho-${i}`).disabled = $(`limiar-dif-${i}`).disabled = !on;
+  $(`limiar-nome-${i}`).textContent = `${nomeDaDificuldade(dif).nome} · ${dif}`;
+}
+function mostrarFluxo(i) {
+  const padrao = $(`fluxo-padrao-${i}`).checked, nivel = $(`fluxo-nivel-${i}`), barra = $(`fluxo-${i}`);
+  barra.disabled = padrao;
+  nivel.classList.toggle('padrao', padrao);
+  nivel.querySelector('span').textContent = padrao ? 'Padrão' : `${nomeDaDificuldade(barra.value).nome} · ${barra.value}`;
+}
+for (let i = 0; i < FLUXO_TAM; i++) {
+  $(`fluxo-${i}`).addEventListener('input', () => mostrarFluxo(i));
+  $(`fluxo-padrao-${i}`).addEventListener('change', () => mostrarFluxo(i));
+  $(`limiar-on-${i}`).addEventListener('change', () => mostrarLimiar(i));
+  $(`limiar-dif-${i}`).addEventListener('input', () => mostrarLimiar(i));
+  mostrarLimiar(i);
+}
+const ganhoDe = i => Number(String($(`limiar-ganho-${i}`).value).replace(',', '.'));
+const lerLimiar = () => Array.from({ length: FLUXO_TAM }, (_, i) => ($(`limiar-on-${i}`).checked ? ganhoDe(i) : null));
+const lerDepois = () => Array.from({ length: FLUXO_TAM }, (_, i) => ($(`limiar-on-${i}`).checked ? Number($(`limiar-dif-${i}`).value) : null));
+const lerFluxo = () => Array.from({ length: FLUXO_TAM }, (_, i) => ($(`fluxo-padrao-${i}`).checked ? null : Number($(`fluxo-${i}`).value)));
+
+function fill(c) {
+  (c.fluxo || []).forEach((v, i) => {
+    if (i >= FLUXO_TAM) return;
+    $(`fluxo-padrao-${i}`).checked = v === null;
+    $(`fluxo-${i}`).value = v ?? 40;
+    mostrarFluxo(i);
+    const g = c.fluxoLimiar?.[i] ?? null, d = c.fluxoDepois?.[i] ?? null;
+    $(`limiar-on-${i}`).checked = g !== null && d !== null;
+    if (g !== null) $(`limiar-ganho-${i}`).value = String(g).replace('.', ',');
+    if (d !== null) $(`limiar-dif-${i}`).value = d;
+    mostrarLimiar(i);
+  });
+  dificuldade = c.dificuldade ?? null;
+  $('dificuldade').value = dificuldade ?? 40;
+  mostrarDificuldade();
+  const auto = c.enemiesPerChunk === 'auto';
+  $('enemiesAuto').checked = auto;
+  $('enemiesPerChunk').disabled = auto;
+  $('enemiesPerChunk').value = auto ? 2 : c.enemiesPerChunk;
+  $('enemiesStart').value = c.enemiesStart;
+  $('fruitMin').value = c.fruitMin;
+  $('fruitMax').value = c.fruitMax;
+  $('fruitPercent').value = String(c.fruitPercent).replace('.', ',');
+  showBreakEven();
+  $('speedStart').value = c.speedStart;
+  $('speedGain').value = c.speedGain;
+  $('speedMax').value = c.speedMax;
+  $('pitsMin').value = c.pitsMin;
+  $('pitsMax').value = c.pitsMax;
+}
+function read() {
+  return {
+    enemiesPerChunk: $('enemiesAuto').checked ? 'auto' : $('enemiesPerChunk').value,
+    enemiesStart: $('enemiesStart').value,
+    fruitMin: $('fruitMin').value,
+    fruitMax: $('fruitMax').value,
+    fruitPercent: $('fruitPercent').value,
+    speedStart: $('speedStart').value,
+    speedGain: $('speedGain').value,
+    speedMax: $('speedMax').value,
+    pitsMin: $('pitsMin').value,
+    pitsMax: $('pitsMax').value,
+    dificuldade,
+    fluxo: lerFluxo(),
+    fluxoLimiar: lerLimiar(),
+    fluxoDepois: lerDepois(),
+  };
+}
+function say(msg, err = false) { status.textContent = msg; status.classList.toggle('err', err); }
+
+$('enemiesAuto').addEventListener('change', e => { $('enemiesPerChunk').disabled = e.target.checked; });
+$('form').addEventListener('submit', e => {
+  e.preventDefault();
+  const raw = read();
+  if (+raw.fruitMax < +raw.fruitMin) { say('O tamanho máximo precisa ser maior ou igual ao mínimo.', true); return; }
+  if (+raw.speedMax < +raw.speedStart) { say('A velocidade máxima precisa ser maior ou igual à inicial.', true); return; }
+  if (+raw.pitsMax < +raw.pitsMin) { say('O máximo de buracos precisa ser maior ou igual ao mínimo.', true); return; }
+  const ruim = raw.fluxoLimiar.findIndex(g => g !== null && !(g >= 0.1 && g <= 100));
+  if (ruim >= 0) { say(`Partida ${ruim + 1}: o limiar de ganho precisa ser um número entre 0,1 e 100 (ex.: 1,5).`, true); return; }
+  salvar(raw, 'Salvo. Vale para as próximas partidas.');
+});
+$('reset').addEventListener('click', () => salvar(DEFAULTS, 'Valores padrão restaurados.'));
+async function salvar(regras, msg) {
+  try { fill(await arena.salvarRegras(regras)); say(msg); }
+  catch (err) { say(err.message, true); }
+}
+
+// só o operador vê e salva as regras
+const { usuario } = await arena.sessao().catch(() => ({}));
+const local = await arena.adminLocal();
+if (local) {
+  // servidor de testes com --admin-local, aberto em localhost: sem login
+  $('aviso-local').hidden = false;
+  $('form').hidden = false;
+  fill(await arena.regras());
+} else if (!usuario?.operador) {
+  $('sem-acesso').hidden = false;
+  if (usuario) $('sem-acesso-msg').textContent = `Você entrou como ${usuario.nome}, que não é operador. Saia e entre com a conta de operador.`;
+} else if (!usuario.acessoOperador && !usuario.doisFatoresAtivo) {
+  $('ativar-2fa').hidden = false; // primeiro, o app autenticador
+} else if (!usuario.acessoOperador && !usuario.sessaoComDoisFatores) {
+  $('entrar-2fa').hidden = false;
+} else {
+  $('form').hidden = false;
+  fill(await arena.regras());
+}
+
+// ---- ativação do app autenticador ----
+if (usuario?.acessoOperador && usuario.ativacao2faOpcional && !usuario.doisFatoresAtivo) {
+  $('seguranca-opcional').hidden = false;
+  $('titulo-2fa').textContent = 'Ativar verificação em duas etapas';
+  $('explica-2fa').textContent = 'Confirme sua senha e adicione a chave ao app autenticador. A verificação só será ativada depois que você confirmar o código do app.';
+  $('campo-ativacao-2fa').hidden = true;
+}
+$('abrir-2fa').addEventListener('click', () => {
+  $('seguranca-opcional').hidden = true;
+  $('ativar-2fa').hidden = false;
+  $('senha-2fa').focus();
+});
+const msg2fa = t => { $('status-2fa').textContent = t || ''; };
+$('gerar-2fa').addEventListener('click', async () => {
+  msg2fa();
+  try {
+    const r = await arena.iniciar2fa($('senha-2fa').value, $('ativacao-2fa').value);
+    $('senha-2fa').value = ''; $('ativacao-2fa').value = '';
+    $('chave-2fa').textContent = r.segredo.match(/.{1,4}/g).join(' ');
+    $('link-otp').href = r.uri;
+    $('passo-1').hidden = true; $('passo-2').hidden = false;
+    $('codigo-2fa').focus();
+  } catch (err) { msg2fa(err.message); }
+});
+$('confirmar-2fa').addEventListener('click', async () => {
+  msg2fa();
+  try {
+    const r = await arena.confirmar2fa($('codigo-2fa').value);
+    $('reserva-2fa').textContent = r.codigosReserva.map(c => c.slice(0, 5) + '-' + c.slice(5)).join('   ');
+    $('passo-2').hidden = true; $('passo-3').hidden = false;
+  } catch (err) { msg2fa(err.message); }
+});
+$('guardei-2fa').addEventListener('click', () => location.reload());
+$('sair-2fa').addEventListener('click', async () => { await arena.sair().catch(() => {}); location.href = '/'; });
+
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const data = t => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(t));
+const EVENTOS = {
+  login: 'entrou', login_operador: 'operador entrou', login_falhou: 'login errado', cadastro: 'conta criada', visitante: 'visitante entrou',
+  cadastro_menor: 'cadastro recusado (menor de 18)', limite_excedido: 'excesso de pedidos bloqueado', regras_alteradas: 'regras alteradas',
+  partida_em_analise: 'pagamento foi para análise', partida_suspeita: 'partida com sinais suspeitos (paga)', analise_liquidada: 'análise antiga paga',
+  saque_aprovado: 'saque aprovado (pago)', saque_recusado: 'saque recusado (devolvido)', saque_pago: 'saque pago', saque_devolvido: 'saque devolvido', partida_divergente: 'jogo e servidor divergiram', partida_refeita: 'partida refeita (página fechada)',
+  partida_erro: 'replay falhou', analise_aprovada: 'análise aprovada', analise_recusada: 'análise recusada', gravacao_adiantada: 'gravação adiantada recusada',
+  gravacao_reescrita: 'tentou reescrever a gravação', acesso_negado_operador: 'tentou rota de operador', saque: 'saque', senha_redefinida: 'senha redefinida',
+  usuario_alterado_pelo_operador: 'operador alterou um jogador', conta_alterada_pelo_suporte: 'conta alterada pelo suporte',
+  recuperacao_pedida: 'pediu nova senha', perfil_alterado: 'e-mail ou senha alterados', perfil_senha_errada: 'senha atual errada no perfil',
+  trava_saldo_negativo: 'trava de saldo negativo acionada',
+  login_senha_ok_esperando_codigo: 'operador: senha certa, esperando código', codigo_2fa_errado: 'código do app errado',
+  login_operador_codigo_reserva: 'operador entrou com código de reserva', '2fa_ativado': 'app autenticador ativado',
+  '2fa_senha_errada': 'senha errada ao ativar o app', '2fa_desativado': 'jogador desligou o app autenticador', saque_codigo_errado: 'código errado ao sacar', login_codigo_reserva: 'jogador entrou com código de reserva', recuperacao_email_falhou: 'e-mail de recuperação não foi enviado', '2fa_resetado_pelo_servidor': 'app autenticador desligado no servidor',
+};
+async function mostrarAuditoria() {
+  const el = $('lista-auditoria');
+  try {
+    const { eventos } = await arena.auditoria();
+    el.innerHTML = eventos.length ? eventos.map(ev => `<div><time>${data(ev.quando)}</time><span>${esc(EVENTOS[ev.evento] || ev.evento)}${ev.nome ? ` · ${esc(ev.nome)}` : ''}${ev.ip ? ` · <code>${esc(ev.ip)}</code>` : ''}</span></div>`).join('')
+      : '<p class="vazio">Nada registrado ainda.</p>';
+  } catch (err) { el.innerHTML = `<p class="vazio">${esc(err.message)}</p>`; }
+}
+if (local || usuario?.acessoOperador) {
+  $('auditoria').hidden = false;
+  await mostrarAuditoria();
+}
+</script>
+</body>
+</html>

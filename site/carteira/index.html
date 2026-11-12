@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crash Arena · Carteira</title>
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/paginas.css">
+</head>
+<body class="pg-interna pg-carteira">
+<header id="topo"></header>
+<main>
+  <section class="panel" aria-labelledby="titulo">
+    <div class="badge"><span>✦</span> CARTEIRA DO JOGADOR</div>
+    <h2 id="titulo">Suas moedas.</h2>
+    <p class="subtitle">Gerencie seu saldo em um só lugar.</p>
+    <div class="big-balance num">✦ <span id="saldo">0,00</span> <small>moedas</small></div>
+    <div class="tabs" role="tablist">
+      <button type="button" class="selected" data-acao="deposito" role="tab" aria-selected="true">Depositar</button>
+      <button type="button" data-acao="saque" role="tab" aria-selected="false">Sacar</button>
+    </div>
+    <form id="form" novalidate>
+      <div id="bloco-deposito">
+        <label>VALOR DO DEPÓSITO (PIX)</label>
+        <div class="amounts deposito-valores" id="valores"></div>
+        <div id="promos"></div>
+        <p class="note">✦ &nbsp; R$ 1 = 1 moeda<br><span id="nota-pix">Pagamento por Pix: o saldo entra assim que o banco confirmar.</span></p>
+      </div>
+      <div id="bloco-saque" hidden>
+        <p class="rodada" id="rodada" hidden></p>
+        <label for="valor">VALOR DO SAQUE EM R$</label>
+        <div class="field"><span>R$</span><input id="valor" inputmode="decimal" autocomplete="off" placeholder="0,00"></div>
+        <label>CHAVE PIX PARA RECEBER</label>
+        <div class="tabs chave-tipo" role="radiogroup">
+          <button type="button" class="selected" data-chave="cpf" role="radio" aria-checked="true">CPF</button>
+          <button type="button" data-chave="telefone" role="radio" aria-checked="false">Telefone</button>
+        </div>
+        <div class="field"><span id="chave-icone">#</span><input id="chave" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" maxlength="15"></div>
+        <div id="titular" hidden>
+          <label for="documento">CPF DO TITULAR DA CHAVE</label>
+          <div class="field"><span>#</span><input id="documento" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" maxlength="14"></div>
+        </div>
+        <p class="note">O saque é conferido pela equipe e enviado por Pix para a chave informada. O valor fica reservado enquanto isso; se for recusado, volta para o seu saldo.</p>
+      </div>
+      <p class="erro" id="erro" role="alert"></p>
+      <button class="primary" id="enviar">GERAR PIX ➜</button>
+    </form>
+    <div class="lista" id="saques-box" hidden>
+      <h3>Seus saques</h3>
+      <ol id="saques"></ol>
+    </div>
+    <div class="lista">
+      <h3>Histórico</h3>
+      <ol id="movimentos"></ol>
+    </div>
+  </section>
+</main>
+<dialog class="arena" id="confirmar" aria-labelledby="dlg-titulo">
+  <button class="dialog-close" type="button" data-fechar aria-label="Fechar">×</button>
+  <div class="badge" id="dlg-badge">CARTEIRA · PIX</div>
+  <h2 id="dlg-titulo">Pague com Pix</h2>
+  <div class="payment-summary"><strong id="dlg-valor"></strong><span id="dlg-moedas"></span></div>
+  <div id="dlg-pix">
+    <img id="dlg-qr" class="pix-qr" alt="QR Code do Pix" hidden>
+    <label for="dlg-copia">PIX COPIA E COLA</label>
+    <textarea id="dlg-copia" class="pix-copia" readonly rows="3"></textarea>
+    <button class="primary" type="button" id="dlg-copiar">COPIAR CÓDIGO PIX</button>
+    <p class="pix-espera" id="dlg-espera"><span class="pix-girando"></span> Aguardando o pagamento… pode pagar no app do seu banco; esta tela atualiza sozinha.</p>
+  </div>
+  <div id="dlg-pago" hidden>
+    <p class="pix-pago">✓ Pagamento confirmado! As moedas já estão na sua carteira.</p>
+    <button class="primary" type="button" data-fechar>JOGAR ➜</button>
+  </div>
+  <button class="secondary" type="button" data-fechar style="margin-top:10px">← Voltar para a carteira</button>
+</dialog>
+<dialog class="arena" id="dlg-saque" aria-labelledby="saque-titulo">
+  <button class="dialog-close" type="button" data-fechar-saque aria-label="Fechar">×</button>
+  <div class="badge">CARTEIRA · SAQUE</div>
+  <h2 id="saque-titulo">Confirme o saque</h2>
+  <div class="payment-summary"><strong id="saque-valor"></strong><span id="saque-destino"></span></div>
+  <p class="erro" id="saque-erro" role="alert"></p>
+  <button class="primary" type="button" id="saque-ok">CONFIRMAR SAQUE <b>✓</b></button>
+  <button class="secondary" type="button" data-fechar-saque style="margin-top:10px">← Voltar</button>
+</dialog>
+<script type="module" src="../js/paginas/carteira.js"></script>
+</body>
+</html>
