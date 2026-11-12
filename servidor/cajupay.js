@@ -66,6 +66,14 @@ const criarPix = ({ valor, depositoId, usuario, urlCheckout }) => chamar('POST',
 const consultarPagamento = id => chamar('GET', `/api/payments/${encodeURIComponent(id)}`);
 
 // Saque Pix para a chave do jogador (CPF ou telefone). idempotencia = id do saque.
+const idRepasseDaReferencia = ref => {
+  const s = String(ref || '');
+  if (prefixo && !s.startsWith(`${prefixo}-`)) return null;
+  const sem = prefixo ? s.slice(prefixo.length + 1) : s;
+  const m = /^repasse-(\d{1,12})$/.exec(sem);
+  return m ? Number(m[1]) : null;
+};
+
 const enviarSaque = ({ saqueId, valor, chaveTipo, chave, documentoTitular }) => chamar('POST', '/api/payouts', {
   amount_cents: valor, currency: 'BRL', wallet_kind: 'main', external_ref: referencia('saque', saqueId),
   destination: { method: 'dict' },
@@ -73,6 +81,15 @@ const enviarSaque = ({ saqueId, valor, chaveTipo, chave, documentoTitular }) => 
   pix_key_type: chaveTipo === 'telefone' ? 'phone' : 'cpf',
   ...(chaveTipo === 'telefone' && documentoTitular ? { key_owner_document: documentoTitular } : {}),
 }, { idempotencia: referencia('saque', saqueId) });
+
+const enviarRepasse = ({ repasseId, valor, chaveTipo, chave, documentoTitular, nome }) => chamar('POST', '/api/payouts', {
+  amount_cents: valor, currency: 'BRL', wallet_kind: 'main', external_ref: referencia('repasse', repasseId),
+  destination: { method: 'dict' },
+  pix_key: chaveTipo === 'telefone' ? `+55${chave}` : chave,
+  pix_key_type: chaveTipo === 'telefone' ? 'phone' : 'cpf',
+  ...(chaveTipo === 'telefone' && documentoTitular ? { key_owner_document: documentoTitular } : {}),
+  description: `Repasse ${nome || 'Socio'} #${repasseId}`,
+}, { idempotencia: referencia('repasse', repasseId) });
 
 // ---------- webhook ----------
 function segredoWebhook() {
@@ -100,4 +117,4 @@ async function registrarWebhook(url) {
   return { ok: !!segredoWebhook() };
 }
 
-module.exports = { configurado, saqueAutomatico, criarPix, consultarPagamento, enviarSaque, conferirAssinatura, registrarWebhook, segredoWebhook, idSaqueDaReferencia, ErroGateway };
+module.exports = { configurado, saqueAutomatico, criarPix, consultarPagamento, enviarSaque, enviarRepasse, conferirAssinatura, registrarWebhook, segredoWebhook, idSaqueDaReferencia, idRepasseDaReferencia, ErroGateway };

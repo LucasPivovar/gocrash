@@ -111,3 +111,8 @@ export const alterarUsuarioAdmin = (id, dados) => api('PATCH', `/admin/usuarios/
 export const adminLocal = async () => { try { return (await api('GET', '/admin/local')).local; } catch { return false; } };
 export const iniciar2fa = (senha, codigoAtivacao) => api('POST', '/admin/2fa/iniciar', { senha, codigoAtivacao });
 export const confirmar2fa = codigo => api('POST', '/admin/2fa/confirmar', { codigo });
+
+// repartição entre os donos (operador)
+export const reparticaoAdmin = () => api('GET', '/admin/reparticao');
+export const salvarSocioAdmin = dados => api('POST', '/admin/reparticao/socios', dados);
+export const repassarSocioAdmin = dados => api('POST', '/admin/reparticao/repassar', dados);

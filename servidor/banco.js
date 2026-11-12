@@ -192,6 +192,31 @@ CREATE TABLE IF NOT EXISTS bloqueios_login (
 );
 
 -- Registro de segurança: logins, cadastros, mudanças de regra, análises, bloqueios por excesso de pedidos.
+CREATE TABLE IF NOT EXISTS socios (
+  id             INTEGER PRIMARY KEY,
+  nome           TEXT NOT NULL,
+  conta_cajupay  TEXT NOT NULL DEFAULT '',
+  porcentagem    REAL NOT NULL,
+  chave_tipo     TEXT NOT NULL DEFAULT 'cpf',
+  chave          TEXT NOT NULL DEFAULT '',
+  documento      TEXT NOT NULL DEFAULT '',
+  ativo          INTEGER NOT NULL DEFAULT 1,
+  criado         INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS repasses_socios (
+  id          INTEGER PRIMARY KEY,
+  socio_id    INTEGER NOT NULL,
+  valor       INTEGER NOT NULL,
+  modo        TEXT NOT NULL,
+  estado      TEXT NOT NULL,
+  gateway_id  TEXT,
+  observacao  TEXT,
+  operador_id INTEGER,
+  criado      INTEGER NOT NULL,
+  pago_em     INTEGER
+);
+
 CREATE TABLE IF NOT EXISTS auditoria (
   id          INTEGER PRIMARY KEY,
   quando      INTEGER NOT NULL,
