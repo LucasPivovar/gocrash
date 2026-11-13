@@ -6,6 +6,7 @@
     "start": "node servidor/serve.js 8091"
   },
   "dependencies": {
+    "qrcode": "^1.5.4",
     "three": "0.160.0"
   }
 }

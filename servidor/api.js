@@ -1,3 +1,4 @@
+const QRCode = require('qrcode');
 // API do Crash Arena: contas, sessões, carteira (livro-razão), partidas com replay e regras do operador.
 // Ainda sem dinheiro real: depósito e saque são simulados.
 //
@@ -772,8 +773,16 @@ rota('POST', '/api/carteira/deposito', { login: true }, async ({ u, corpo, ip })
     auditar('deposito_gateway_erro', { u, ip, detalhe: String(e.message).slice(0, 300) });
     throw new Erro(502, 'Não foi possível gerar o Pix agora. Tente de novo em instantes.');
   }
+  let qrImagem = p.pix_qr_code || '';
+  if (!qrImagem && p.pix_copy_paste) {
+    try {
+      qrImagem = await QRCode.toDataURL(p.pix_copy_paste, { margin: 1, width: 280 });
+    } catch (e) {
+      console.error('[qrcode erro]', e.message);
+    }
+  }
   db.prepare('UPDATE depositos SET gateway_id = ?, pix_copia_cola = ?, pix_qr = ? WHERE id = ?')
-    .run(String(p.payment_id), String(p.pix_copy_paste || ''), String(p.pix_qr_code || '').slice(0, 200000), id);
+    .run(String(p.payment_id), String(p.pix_copy_paste || ''), String(qrImagem || '').slice(0, 200000), id);
   auditar('deposito_pix_gerado', { u, ip, detalhe: { deposito: id, valor: v } });
   return { deposito: depositoPublico(db.prepare('SELECT * FROM depositos WHERE id = ?').get(id)) };
 });
