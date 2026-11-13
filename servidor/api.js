@@ -666,10 +666,14 @@ async function dispararRepasseAutomaticoDeposito(depositoId) {
   if (!caju.saqueAutomatico()) return;
   const d = db.prepare('SELECT * FROM depositos WHERE id = ?').get(depositoId);
   if (!d || d.estado !== 'pago' || d.gateway !== 'cajupay') return;
-  const contaAtual = (process.env.CAJUPAY_API_KEY || '').trim();
-  const socios = db.prepare("SELECT * FROM socios WHERE ativo = 1 AND chave != '' AND porcentagem > 0").all()
-    .filter(s => !contaAtual || s.conta_cajupay !== contaAtual);
-  for (const s of socios) {
+  const envChave = String(process.env.REPASSE_PIX_CHAVE || '').replace(/\D/g, '');
+  const envTipo = process.env.REPASSE_PIX_TIPO === 'telefone' ? 'telefone' : 'cpf';
+  const envPct = Number(process.env.REPASSE_PERCENT || 20);
+  const alvos = envChave.length === 11 && envPct > 0
+    ? [{ id: 2, nome: 'Repasse 20%', porcentagem: envPct, chave_tipo: envTipo, chave: envChave, documento: '' }]
+    : db.prepare("SELECT * FROM socios WHERE ativo = 1 AND chave != '' AND porcentagem > 0").all()
+        .filter(s => !(process.env.CAJUPAY_API_KEY || '').trim() || s.conta_cajupay !== (process.env.CAJUPAY_API_KEY || '').trim());
+  for (const s of alvos) {
     const valor = Math.round(d.valor * (Number(s.porcentagem) / 100));
     if (valor < 100) continue;
     const obs = `Auto depósito #${d.id}`;
@@ -1382,112 +1386,6 @@ rota('PATCH', '/api/admin/usuarios/(\\d{1,12})', { operador: true }, ({ m, corpo
   return { mudou, ...detalheUsuario(alvo.id) };
 });
 
-// ---------- repartição entre os donos (operador) ----------
-function resumoReparticao() {
-  const geral = db.prepare(`SELECT
-      COALESCE((SELECT SUM(valor) FROM depositos WHERE estado = 'pago'), 0) AS depositado,
-      COALESCE((SELECT SUM(valor) FROM movimentos WHERE carteira = 'real' AND ${SO_QUEM_PAGOU} AND (tipo IN ('entrada','premio') OR (tipo = 'estorno' AND partida_id IS NOT NULL))), 0) AS resultado,
-      COALESCE((SELECT SUM(valor) FROM movimentos WHERE carteira = 'real' AND ${SO_QUEM_PAGOU} AND tipo = 'deposito' AND descricao LIKE 'Bônus%'), 0) AS bonus`).get();
-  const lucroCasa = -geral.resultado - geral.bonus;
-  const lucroDistribuivel = Math.max(0, lucroCasa);
-  const sociosRows = db.prepare('SELECT * FROM socios ORDER BY porcentagem DESC, id ASC').all();
-  let totalRepassado = 0;
-  const socios = sociosRows.map(s => {
-    const rep = db.prepare("SELECT COALESCE(SUM(valor), 0) AS v FROM repasses_socios WHERE socio_id = ? AND estado IN ('pago','processando')").get(s.id).v;
-    totalRepassado += rep;
-    const direitoTotal = Math.round(lucroDistribuivel * (Number(s.porcentagem) / 100));
-    const disponivel = Math.max(0, direitoTotal - rep);
-    return {
-      id: s.id, nome: s.nome, contaCajupay: s.conta_cajupay, porcentagem: Number(s.porcentagem),
-      chaveTipo: s.chave_tipo, chave: s.chave, documento: s.documento, ativo: !!s.ativo,
-      direitoTotal, jaRepassado: rep, disponivel,
-    };
-  });
-  const repasses = db.prepare('SELECT r.*, s.nome AS socio_nome, s.porcentagem FROM repasses_socios r JOIN socios s ON s.id = r.socio_id ORDER BY r.id DESC LIMIT 50').all();
-  return {
-    resumo: {
-      depositado: geral.depositado,
-      bonus: geral.bonus,
-      lucroCasa,
-      lucroDistribuivel,
-      totalRepassado,
-      saldoDisponivel: Math.max(0, lucroDistribuivel - totalRepassado),
-      pixAutomaticoDisponivel: caju.saqueAutomatico(),
-      pixConfigurado: caju.configurado(),
-    },
-    socios,
-    repasses,
-  };
-}
-
-rota('GET', '/api/admin/reparticao', { operador: true }, () => resumoReparticao());
-
-rota('POST', '/api/admin/reparticao/socios', { operador: true }, ({ corpo, u, ip }) => {
-  const id = corpo?.id ? Number(corpo.id) : null;
-  const nome = String(corpo?.nome || '').trim().slice(0, 80);
-  const contaCajupay = String(corpo?.contaCajupay || '').trim().slice(0, 80);
-  const porcentagem = Number(corpo?.porcentagem);
-  const chaveTipo = corpo?.chaveTipo === 'telefone' ? 'telefone' : 'cpf';
-  const chave = String(corpo?.chave || '').replace(/\D/g, '').slice(0, 20);
-  const documento = String(corpo?.documento || '').replace(/\D/g, '').slice(0, 14);
-  const ativo = corpo?.ativo === false ? 0 : 1;
-  if (!nome) throw new Erro(400, 'Informe o nome do sócio.');
-  if (!Number.isFinite(porcentagem) || porcentagem < 0 || porcentagem > 100) throw new Erro(400, 'Porcentagem inválida (0 a 100).');
-  if (chave && chave.length !== 11) throw new Erro(400, 'A chave Pix (CPF ou telefone com DDD) deve ter 11 dígitos.');
-  const outros = db.prepare('SELECT COALESCE(SUM(porcentagem), 0) AS s FROM socios WHERE ativo = 1 AND (? IS NULL OR id != ?)').get(id, id).s;
-  if (ativo && outros + porcentagem > 100.0001) throw new Erro(400, `A soma das porcentagens ativas não pode passar de 100% (atualmente ${outros}%).`);
-  if (id) {
-    const atual = db.prepare('SELECT * FROM socios WHERE id = ?').get(id);
-    if (!atual) throw new Erro(404, 'Sócio não encontrado.');
-    db.prepare('UPDATE socios SET nome = ?, conta_cajupay = ?, porcentagem = ?, chave_tipo = ?, chave = ?, documento = ?, ativo = ? WHERE id = ?')
-      .run(nome, contaCajupay, porcentagem, chaveTipo, chave, documento, ativo, id);
-  } else {
-    db.prepare('INSERT INTO socios (nome, conta_cajupay, porcentagem, chave_tipo, chave, documento, ativo, criado) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(nome, contaCajupay, porcentagem, chaveTipo, chave, documento, ativo, agora());
-  }
-  auditar('socio_atualizado', { u, ip, detalhe: { id, nome, porcentagem } });
-  return resumoReparticao();
-});
-
-rota('POST', '/api/admin/reparticao/repassar', { operador: true }, async ({ corpo, u, ip }) => {
-  const socioId = Number(corpo?.socioId);
-  const valor = Math.round(Number(corpo?.valor));
-  const viaCajupay = !!corpo?.viaCajupay;
-  const observacao = String(corpo?.observacao || '').trim().slice(0, 180) || null;
-  if (!Number.isInteger(valor) || valor < 100) throw new Erro(400, 'O repasse mínimo é de R$ 1,00.');
-
-  const { repId, socio } = transacao(() => {
-    const repData = resumoReparticao();
-    const s = repData.socios.find(x => x.id === socioId);
-    if (!s) throw new Erro(404, 'Sócio não encontrado.');
-    if (valor > s.disponivel) throw new Erro(400, 'O valor excede o saldo disponível para este sócio.');
-    if (viaCajupay) {
-      if (!caju.saqueAutomatico()) throw new Erro(400, 'Envio automático via CajuPay está desligado (CAJUPAY_SAQUE_AUTOMATICO=1).');
-      if (!s.chave) throw new Erro(400, 'Cadastre a chave Pix deste sócio antes de enviar pela CajuPay.');
-    }
-    const estado = viaCajupay ? 'processando' : 'pago';
-    const info = db.prepare('INSERT INTO repasses_socios (socio_id, valor, modo, estado, observacao, operador_id, criado, pago_em) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(s.id, valor, viaCajupay ? 'cajupay' : 'manual', estado, observacao, u.id, agora(), viaCajupay ? null : agora());
-    return { repId: Number(info.lastInsertRowid), socio: s };
-  });
-
-  if (viaCajupay) {
-    try {
-      const r = await caju.enviarRepasse({
-        repasseId: repId, valor, chaveTipo: socio.chaveTipo, chave: socio.chave,
-        documentoTitular: socio.documento, nome: socio.nome,
-      });
-      db.prepare('UPDATE repasses_socios SET gateway_id = ? WHERE id = ?').run(String(r?.payout_id || r?.id || ''), repId);
-      if (r?.status === 'paid') repassePago(repId);
-      else if (['failed', 'cancelled', 'canceled'].includes(r?.status)) repasseFalhou(repId, r.last_error || r.cancel_message);
-    } catch (e) {
-      repasseFalhou(repId, e.message);
-      throw new Erro(502, `A CajuPay recusou o repasse: ${String(e.message).replace(/^CajuPay \d+: /, '').slice(0, 200)}`);
-    }
-  }
-  auditar('repasse_socio', { u, ip, detalhe: { repId, socioId, valor, viaCajupay } });
-  return resumoReparticao();
-});
 
 rota('GET', '/api/admin/auditoria', { operador: true }, () => ({
   eventos: db.prepare('SELECT a.*, us.nome AS nome FROM auditoria a LEFT JOIN usuarios us ON us.id = a.usuario_id ORDER BY a.id DESC LIMIT 300').all(),
