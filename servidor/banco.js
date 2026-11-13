@@ -249,3 +249,5 @@ function transacao(fn) {
 }
 
 module.exports = { db, transacao, arquivo };
+
+try { db.exec('ALTER TABLE usuarios ADD COLUMN demo INTEGER NOT NULL DEFAULT 0'); } catch {}

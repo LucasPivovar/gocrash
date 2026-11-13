@@ -173,7 +173,7 @@ const ativacao2faOpcional = process.env.ARENA_ADMIN_2FA === 'opcional';
 const publico = u => ({
   id: u.id, nome: u.nome, email: u.email || '', visitante: !!u.visitante, operador: !!u.operador,
   // o tutorial (e o jogo) só libera depois do primeiro depósito pago; antes disso a pessoa vai para a carteira
-  depositou: !!u.operador || !!db.prepare("SELECT 1 FROM depositos WHERE usuario_id = ? AND estado = 'pago' LIMIT 1").get(u.id),
+  depositou: !!u.operador || !!u.demo || !!db.prepare("SELECT 1 FROM depositos WHERE usuario_id = ? AND estado = 'pago' LIMIT 1").get(u.id),
   tutorialPendente: !u.tutorial_feito && !u.operador,
   acessoOperador: !!u.operador && (!exigir2faOperador || (ativacao2faOpcional && !u.totp_ativo) || (!!u.totp_ativo && !!u.dois_fatores)),
   ativacao2faOpcional: !!u.operador && ativacao2faOpcional,
@@ -815,6 +815,7 @@ function chavePix(corpo) {
 rota('POST', '/api/carteira/saque', { login: true }, ({ u, corpo, ip }) => {
   limitar(`carteira:${u.id}`, 20, 60e3);
   if (u.visitante) throw new Erro(403, 'Visitantes não podem sacar. Crie uma conta para sacar.');
+  if (u.demo) throw new Erro(403, 'Conta demo de influenciador não permite saque real.');
   const r0 = rodada(u.id);
   if (r0.falta > 0) throw new Erro(403, `Para sacar, jogue antes o valor que entrou na carteira: faltam ${moedasBrl(r0.falta)} em partidas.`, 'rodada');
   const pix = chavePix(corpo);
@@ -862,7 +863,26 @@ rota('POST', '/api/partidas', { login: true }, async ({ u, corpo }) => {
     // Partidas antigas de treino ficam fora da contagem.
     const feitas = db.prepare("SELECT COUNT(*) AS n FROM partidas WHERE usuario_id = ? AND estado <> 'cancelada' AND carteira = 'real'").get(u.id).n;
     const posicao = feitas % cfg.FLUXO_TAM;
-    const regras = { ...cfg.regrasNoFluxo(regrasAtuais(), posicao), fluxoPosicao: posicao + 1 };
+    const regras = u.demo
+      ? {
+          ...cfg.normalize({
+            enemiesPerChunk: 1,
+            enemiesStart: 0,
+            fruitMin: 4,
+            fruitMax: 6,
+            fruitPercent: 15,
+            speedStart: 0.85,
+            speedGain: 0.015,
+            speedMax: 1.15,
+            pitsMin: 0,
+            pitsMax: 1,
+            analiseAcimaDe: 999,
+            dificuldade: 0,
+            limiar: null,
+          }),
+          fluxoPosicao: 1,
+        }
+      : { ...cfg.regrasNoFluxo(regrasAtuais(), posicao), fluxoPosicao: posicao + 1 };
     db.prepare("INSERT INTO partidas (id, usuario_id, entrada, semente, regras, estado, criada, carteira) VALUES (?, ?, ?, ?, ?, 'criada', ?, ?)")
       .run(id, u.id, entrada, semente, JSON.stringify(regras), agora(), 'real');
     lancar(u.id, 'entrada', -entrada, 'Entrada · Desafio solo', id);
