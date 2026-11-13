@@ -84,7 +84,7 @@ $('auth').addEventListener('submit', e => {
         if (!$('maior18').checked) return falhar('Confirme que você tem 18 anos ou mais.', 'maior18');
         const c = await arena.cadastrar({ nome: $('nome').value, email, senha, maior18: $('maior18').checked, ref: refGuardado() });
         try { localStorage.removeItem(REF_CHAVE); } catch {}
-        if (!c.confirmar) { location.href = 'lobby/'; return; } // sem confirmação de e-mail: já entrou
+        if (!c.confirmar) { location.href = 'carteira/?primeiro=1'; return; } // sem confirmação de e-mail: já entrou
         // servidor exigindo confirmação (ARENA_CONFIRMAR_EMAIL=1): a conta só entra depois do link
         trocarModo('entrar');
         $('email').value = email; $('senha').value = '';
@@ -107,8 +107,8 @@ $('auth').addEventListener('submit', e => {
           return;
         }
         if (r.usuario?.operador) { location.href = 'admin/configuracoes/'; return; }
+        location.href = r?.usuario?.depositou ? 'lobby/' : 'carteira/?primeiro=1';
       }
-      location.href = 'lobby/';
     } catch (err) { falhar(err.message); }
   });
 });

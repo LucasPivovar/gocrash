@@ -638,7 +638,7 @@ rota('POST', '/api/redefinir', {}, ({ corpo, res, req, ip }) => {
 // carteira
 // Depósito: só estes valores (centavos). Promoções de 1ª vez por conta: depositar R$ 5 → fica com R$ 15;
 // depositar R$ 25 → fica com R$ 100. O bônus entra junto com o depósito, quando o Pix é confirmado.
-const VALORES_DEPOSITO = [500, 1000, 2500, 5000];
+const VALORES_DEPOSITO = [200, 500, 1000, 2500];
 const PROMOCOES = { 500: 1000, 2500: 7500 }; // depósito → bônus
 const caju = require('./cajupay');
 const moedasBrl = c => `R$ ${moedas(c).replace(/,00$/, '')}`;
@@ -752,7 +752,7 @@ rota('POST', '/api/conta/tutorial', { login: true }, ({ u, corpo }) => {
 rota('POST', '/api/carteira/deposito', { login: true }, async ({ u, corpo, ip }) => {
   limitar(`carteira:${u.id}`, 20, 60e3);
   const v = centavos(corpo.valor);
-  if (!VALORES_DEPOSITO.includes(v)) throw new Erro(400, 'Escolha um dos valores: R$ 5, R$ 10, R$ 25 ou R$ 50.');
+  if (!VALORES_DEPOSITO.includes(v)) throw new Erro(400, 'Escolha um dos valores: R$ 2, R$ 5, R$ 10 ou R$ 25.');
   if (!caju.configurado()) {
     const id = Number(db.prepare("INSERT INTO depositos (usuario_id, valor, estado, gateway, criado) VALUES (?, ?, 'pendente', 'simulado', ?)").run(u.id, v, agora()).lastInsertRowid);
     creditarDeposito(id, 'simulado');
