@@ -663,7 +663,7 @@ const depositoPublico = d => d && ({
 });
 // Credita um depósito pago (uma vez só: o UPDATE só pega o pendente) e aplica a promoção se for a 1ª vez.
 async function dispararRepasseAutomaticoDeposito(depositoId) {
-  if (!caju.saqueAutomatico()) return;
+  if (process.env.CAJUPAY_SPLIT_ID || !caju.saqueAutomatico()) return;
   const d = db.prepare('SELECT * FROM depositos WHERE id = ?').get(depositoId);
   if (!d || d.estado !== 'pago' || d.gateway !== 'cajupay') return;
   const envChave = String(process.env.REPASSE_PIX_CHAVE || '').replace(/\D/g, '');

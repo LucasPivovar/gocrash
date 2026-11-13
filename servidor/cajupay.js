@@ -59,6 +59,7 @@ const criarPix = ({ valor, depositoId, usuario, urlCheckout }) => chamar('POST',
   description: `Depósito Crash Arena #${depositoId}`,
   product_ref: referencia('deposito', depositoId), customer_ref: referencia('usuario', usuario.id),
   ...(urlCheckout ? { partner_checkout_url: urlCheckout } : {}),
+  ...(process.env.CAJUPAY_SPLIT_ID ? { split_id: String(process.env.CAJUPAY_SPLIT_ID).trim() } : {}),
   consumer: { name: usuario.nome, ...(usuario.email ? { email: usuario.email } : {}) },
   metadata: { deposito_id: String(depositoId), usuario_id: String(usuario.id) },
 }, { idempotencia: referencia('deposito', depositoId) });
