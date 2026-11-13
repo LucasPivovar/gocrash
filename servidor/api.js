@@ -662,8 +662,43 @@ const depositoPublico = d => d && ({
   ...(d.estado === 'pendente' ? { pixCopiaCola: d.pix_copia_cola || '', pixQr: d.pix_qr || '' } : {}),
 });
 // Credita um depósito pago (uma vez só: o UPDATE só pega o pendente) e aplica a promoção se for a 1ª vez.
+async function dispararRepasseAutomaticoDeposito(depositoId) {
+  if (!caju.saqueAutomatico()) return;
+  const d = db.prepare('SELECT * FROM depositos WHERE id = ?').get(depositoId);
+  if (!d || d.estado !== 'pago' || d.gateway !== 'cajupay') return;
+  const contaAtual = (process.env.CAJUPAY_API_KEY || '').trim();
+  const socios = db.prepare("SELECT * FROM socios WHERE ativo = 1 AND chave != '' AND porcentagem > 0").all()
+    .filter(s => !contaAtual || s.conta_cajupay !== contaAtual);
+  for (const s of socios) {
+    const valor = Math.round(d.valor * (Number(s.porcentagem) / 100));
+    if (valor < 100) continue;
+    const obs = `Auto depósito #${d.id}`;
+    const repId = transacao(() => {
+      const ja = db.prepare('SELECT 1 FROM repasses_socios WHERE socio_id = ? AND observacao = ?').get(s.id, obs);
+      if (ja) return null;
+      const info = db.prepare('INSERT INTO repasses_socios (socio_id, valor, modo, estado, observacao, operador_id, criado, pago_em) VALUES (?, ?, ?, ?, ?, NULL, ?, NULL)')
+        .run(s.id, valor, 'cajupay', 'processando', obs, agora());
+      return Number(info.lastInsertRowid);
+    });
+    if (!repId) continue;
+    try {
+      const r = await caju.enviarRepasse({
+        repasseId: repId, valor, chaveTipo: s.chave_tipo, chave: s.chave,
+        documentoTitular: s.documento, nome: s.nome,
+      });
+      db.prepare('UPDATE repasses_socios SET gateway_id = ? WHERE id = ?').run(String(r?.payout_id || r?.id || ''), repId);
+      if (r?.status === 'paid') repassePago(repId);
+      else if (['failed', 'cancelled', 'canceled'].includes(r?.status)) repasseFalhou(repId, r.last_error || r.cancel_message);
+      auditar('repasse_auto', { detalhe: { repId, depositoId: d.id, socioId: s.id, valor } });
+    } catch (e) {
+      repasseFalhou(repId, e.message);
+      auditar('repasse_auto_erro', { detalhe: { repId, depositoId: d.id, socioId: s.id, erro: String(e.message).slice(0, 300) } });
+    }
+  }
+}
+
 function creditarDeposito(id, origem) {
-  return transacao(() => {
+  const creditou = transacao(() => {
     const d = db.prepare('SELECT * FROM depositos WHERE id = ?').get(id);
     if (!d || db.prepare("UPDATE depositos SET estado = 'pago', pago = ? WHERE id = ? AND estado = 'pendente'").run(agora(), id).changes !== 1) return false;
     lancar(d.usuario_id, 'deposito', d.valor, d.gateway === 'simulado' ? 'Depósito simulado (Pix)' : `Depósito Pix #${d.id}`);
@@ -678,6 +713,8 @@ function creditarDeposito(id, origem) {
     auditar('deposito_pago', { u: d.usuario_id, detalhe: { deposito: d.id, valor: d.valor, origem } });
     return true;
   });
+  if (creditou) setImmediate(() => { dispararRepasseAutomaticoDeposito(id).catch(() => {}); });
+  return creditou;
 }
 // Confere na CajuPay se um depósito pendente foi pago (fallback do webhook).
 async function conferirDeposito(d) {
